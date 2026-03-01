@@ -10,10 +10,12 @@
 	import type { User } from '$lib/server/db/schema';
 	import { page } from '$app/state';
 	import { getInitials } from '$lib/utils';
+	import DarkMode from './custom/dark-mode.svelte';
 	let user: User = page.data.user;
 	const sidebar = useSidebar();
 </script>
 
+<DarkMode />
 <Sidebar.Menu>
 	<Sidebar.MenuItem>
 		<DropdownMenu.Root>
