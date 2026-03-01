@@ -7,6 +7,8 @@
 	import { cn } from '$lib/utils';
 	import type { RemoteCreateProjectType } from '../../../routes/(main)/dashboard/projects/new/project.remote';
 	import { onMount } from 'svelte';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import Eye from '@lucide/svelte/icons/eye';
 
 	type Fields = RemoteCreateProjectType['fields'];
 	let {
@@ -16,6 +18,14 @@
 		production
 	}: Pick<Fields, 'development' | 'staging' | 'preview' | 'production'> = $props();
 
+	onMount(() => {
+		for (const env of EnvironmentType) {
+			const field = getField(env);
+			if ((field.value() ?? []).length === 0) {
+				field.set([{ key: '', value: '' }]);
+			}
+		}
+	});
 	function getField(env: Environment) {
 		switch (env) {
 			case 'development':
@@ -39,14 +49,11 @@
 	function hasInvalidKeys(env: Environment) {
 		return getRows(env).some((r) => r.key && getKeyError(r.key) !== null);
 	}
-	onMount(() => {
-		for (const env of EnvironmentType) {
-			const field = getField(env);
-			if ((field.value() ?? []).length === 0) {
-				field.set([{ key: '', value: '' }]);
-			}
-		}
-	});
+	let visibleIndexes = $state<Record<string, boolean>>({});
+
+	function isVisible(env: Environment, index: number) {
+		return visibleIndexes[`${env}-${index}`] ?? false;
+	}
 </script>
 
 <Tabs value="development">
@@ -87,7 +94,20 @@
 								<p class="text-xs text-red-500">{keyError}</p>
 							{/if}
 						</div>
-						<Input placeholder="VALUE" {...field[index].value.as('password')} />
+						<div
+							class="relative w-full"
+							onmouseenter={() => (visibleIndexes[`${env}-${index}`] = true)}
+							onmouseleave={() => (visibleIndexes[`${env}-${index}`] = false)}
+							role="button"
+							tabindex="-1"
+							aria-label="Toggle visibility"
+						>
+							<Input
+								placeholder="VALUE"
+								{...field[index].value.as('password')}
+								type={isVisible(env, index) ? 'text' : 'password'}
+							/>
+						</div>
 						<Button
 							type="button"
 							variant="destructive"
