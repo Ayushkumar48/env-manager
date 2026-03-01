@@ -12,3 +12,7 @@ export const CreateProjectSchema = z.object({
 	preview: z.array(SecretRowSchema).optional().default([]),
 	production: z.array(SecretRowSchema).optional().default([])
 });
+
+export const UpdateProjectSchema = CreateProjectSchema.extend({
+	id: z.string().min(1)
+});

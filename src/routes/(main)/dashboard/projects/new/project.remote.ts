@@ -3,9 +3,10 @@ import { form, getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
 import { projects, environments, secrets, secretVersions } from '$lib/server/db/schema';
 import { auth } from '$lib/server/auth';
-import { CreateProjectSchema } from '$lib/shared/schema';
+import { CreateProjectSchema, UpdateProjectSchema } from '$lib/shared/schema';
 import { generateId } from '$lib/server/utils';
 import { EnvironmentType } from '$lib/shared/enums';
+import { and, eq, inArray } from 'drizzle-orm';
 
 export const createProject = form(CreateProjectSchema, async (data) => {
 	const { title } = data;
@@ -83,4 +84,150 @@ export const createProject = form(CreateProjectSchema, async (data) => {
 	redirect(303, `/dashboard/projects/${projectId}`);
 });
 
+export const updateProject = form(UpdateProjectSchema, async (data) => {
+	const { id: projectId, title } = data;
+
+	const event = getRequestEvent();
+	if (!event) error(500, 'No request event');
+
+	const session = await auth.api.getSession({
+		headers: event.request.headers
+	});
+
+	if (!session?.user) error(401, 'Unauthorized');
+
+	await db.transaction(async (tx) => {
+		const existingProject = await tx.query.projects.findFirst({
+			where: and(eq(projects.id, projectId), eq(projects.userId, session.user.id))
+		});
+
+		if (!existingProject) error(404, 'Project not found');
+
+		await tx
+			.update(projects)
+			.set({
+				title: title.trim(),
+				updatedAt: new Date()
+			})
+			.where(eq(projects.id, projectId));
+
+		const existingEnvs = await tx.query.environments.findMany({
+			where: eq(environments.projectId, projectId)
+		});
+
+		const envMap = new Map(existingEnvs.map((env) => [env.name, env]));
+
+		const envIds = existingEnvs.map((env) => env.id);
+
+		const allSecrets = envIds.length
+			? await tx.query.secrets.findMany({
+					where: inArray(secrets.environmentId, envIds)
+				})
+			: [];
+
+		const secretMap = new Map(allSecrets.map((s) => [`${s.environmentId}:${s.key}`, s]));
+
+		const secretIds = allSecrets.map((s) => s.id);
+
+		const allVersions = secretIds.length
+			? await tx.query.secretVersions.findMany({
+					where: inArray(secretVersions.secretId, secretIds)
+				})
+			: [];
+
+		const latestVersionMap = new Map<string, (typeof allVersions)[number]>();
+
+		for (const v of allVersions) {
+			const existing = latestVersionMap.get(v.secretId);
+			if (!existing || v.version > existing.version) {
+				latestVersionMap.set(v.secretId, v);
+			}
+		}
+
+		const newSecretRecords: (typeof secrets.$inferInsert)[] = [];
+		const newVersionRecords: (typeof secretVersions.$inferInsert)[] = [];
+		const secretIdsToDelete: string[] = [];
+		const secretsToTouch: string[] = [];
+
+		const submittedSecretKeys = new Set<string>();
+
+		for (const envName of EnvironmentType) {
+			const env = envMap.get(envName);
+			if (!env) continue;
+
+			const envRows = data[envName];
+
+			if (!envRows) continue;
+
+			for (const row of envRows) {
+				if (!row.key || !row.value) continue;
+
+				const compositeKey = `${env.id}:${row.key}`;
+				submittedSecretKeys.add(compositeKey);
+
+				const existingSecret = secretMap.get(compositeKey);
+
+				if (existingSecret) {
+					const latestVersion = latestVersionMap.get(existingSecret.id);
+
+					if (latestVersion && latestVersion.encryptedValue !== row.value) {
+						newVersionRecords.push({
+							id: generateId(),
+							secretId: existingSecret.id,
+							encryptedValue: row.value,
+							version: latestVersion.version + 1
+						});
+
+						secretsToTouch.push(existingSecret.id);
+					}
+				} else {
+					const secretId = generateId();
+
+					newSecretRecords.push({
+						id: secretId,
+						key: row.key,
+						environmentId: env.id
+					});
+
+					newVersionRecords.push({
+						id: generateId(),
+						secretId,
+						encryptedValue: row.value,
+						version: 1
+					});
+				}
+			}
+		}
+
+		for (const s of allSecrets) {
+			const compositeKey = `${s.environmentId}:${s.key}`;
+			if (!submittedSecretKeys.has(compositeKey)) {
+				secretIdsToDelete.push(s.id);
+			}
+		}
+
+		if (newSecretRecords.length) {
+			await tx.insert(secrets).values(newSecretRecords);
+		}
+
+		if (newVersionRecords.length) {
+			await tx.insert(secretVersions).values(newVersionRecords);
+		}
+
+		if (secretIdsToDelete.length) {
+			await tx.delete(secrets).where(inArray(secrets.id, secretIdsToDelete));
+		}
+
+		if (secretsToTouch.length) {
+			await tx
+				.update(secrets)
+				.set({ updatedAt: new Date() })
+				.where(inArray(secrets.id, secretsToTouch));
+		}
+	});
+
+	redirect(303, `/dashboard/projects/${projectId}`);
+});
+
+export type RemoteUpdateProjectType = typeof updateProject;
 export type RemoteCreateProjectType = typeof createProject;

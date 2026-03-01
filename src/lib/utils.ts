@@ -17,3 +17,15 @@ export function getInitials(name: string) {
 	if (words.length === 1) return words[0].charAt(0).toUpperCase();
 	return words[0].charAt(0).toUpperCase() + words[1].charAt(0).toUpperCase();
 }
+
+export function formatDate(
+	date?: Date | string | number | null,
+	monthType: 'short' | 'long' = 'short'
+) {
+	if (!date) return '';
+	return new Date(date).toLocaleDateString('en-US', {
+		year: 'numeric',
+		month: monthType,
+		day: 'numeric'
+	});
+}
