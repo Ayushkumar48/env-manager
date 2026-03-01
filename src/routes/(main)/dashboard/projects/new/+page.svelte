@@ -47,7 +47,7 @@
 			</CardContent>
 		</Card>
 		<div class="flex justify-end">
-			<Button size="lg" disabled={hasInvalidKeys || isPending}>
+			<Button size="lg" type="submit" disabled={hasInvalidKeys || isPending}>
 				{#if isPending}
 					<Spinner />
 					Creating...

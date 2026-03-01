@@ -7,8 +7,6 @@
 	import { cn } from '$lib/utils';
 	import type { RemoteCreateProjectType } from '../../../routes/(main)/dashboard/projects/new/project.remote';
 	import { onMount } from 'svelte';
-	import EyeOff from '@lucide/svelte/icons/eye-off';
-	import Eye from '@lucide/svelte/icons/eye';
 
 	type Fields = RemoteCreateProjectType['fields'];
 	let {

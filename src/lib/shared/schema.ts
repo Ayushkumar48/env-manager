@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const SecretRowSchema = z.object({
-	key: z.string().min(1),
-	value: z.string().min(1)
+	key: z.string(),
+	value: z.string()
 });
 
 export const CreateProjectSchema = z.object({
