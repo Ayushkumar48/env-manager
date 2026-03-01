@@ -2,98 +2,114 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import { Tabs, TabsList, TabsTrigger, TabsContent } from '$lib/components/ui/tabs';
-	import { EnvironmentType } from '$lib/shared/enums';
-	import {
-		addSecret,
-		getKeyError,
-		handleAutoRow,
-		handleEnvPaste,
-		isValidKey,
-		removeSecret,
-		type SecretRow
-	} from '$lib/features/env-manager';
+	import { EnvironmentType, type Environment } from '$lib/shared/enums';
+	import { getKeyError, handleEnvPaste, ensureOneEmptyRow } from '$lib/features/env-manager';
 	import { cn } from '$lib/utils';
+	import type { RemoteCreateProjectType } from '../../../routes/(main)/dashboard/projects/new/project.remote';
+	import { onMount } from 'svelte';
 
+	type Fields = RemoteCreateProjectType['fields'];
 	let {
-		environments = $bindable()
-	}: {
-		environments: Record<string, SecretRow[]>;
-	} = $props();
+		development,
+		staging,
+		preview,
+		production
+	}: Pick<Fields, 'development' | 'staging' | 'preview' | 'production'> = $props();
 
-	function handlePaste(event: ClipboardEvent, env: string) {
-		if (environments) {
-			const updated = handleEnvPaste(event, environments[env]);
-			if (updated) environments[env] = updated;
+	function getField(env: Environment) {
+		switch (env) {
+			case 'development':
+				return development;
+			case 'staging':
+				return staging;
+			case 'preview':
+				return preview;
+			case 'production':
+				return production;
 		}
 	}
 
-	function onAdd(env: string) {
-		if (environments) {
-			environments[env] = addSecret(environments[env]);
-		}
+	function getRows(env: Environment) {
+		return (getField(env).value() ?? []).map((r) => ({
+			key: r?.key ?? '',
+			value: r?.value ?? ''
+		}));
 	}
 
-	function onRemove(env: string, index: number) {
-		if (environments) {
-			environments[env] = removeSecret(environments[env], index);
-		}
+	function hasInvalidKeys(env: Environment) {
+		return getRows(env).some((r) => r.key && getKeyError(r.key) !== null);
 	}
-
-	function onAutoRow(env: string) {
-		if (environments) {
-			environments[env] = handleAutoRow(environments[env]);
+	onMount(() => {
+		for (const env of EnvironmentType) {
+			const field = getField(env);
+			if ((field.value() ?? []).length === 0) {
+				field.set([{ key: '', value: '' }]);
+			}
 		}
-	}
+	});
 </script>
 
 <Tabs value="development">
 	<TabsList class="grid w-full grid-cols-4">
 		{#each EnvironmentType as env (env)}
-			<TabsTrigger value={env} class="relative">
-				{env[0].toUpperCase() + env.slice(1)}
-
-				{#if environments[env].some((s) => s.key && !isValidKey(s.key))}
-					<span class="ml-2 text-xs text-red-500">(Invalid)</span>
+			<TabsTrigger
+				value={env}
+				class="relative capitalize"
+				title={hasInvalidKeys(env) ? 'Invalid keys' : undefined}
+			>
+				{env}
+				{#if hasInvalidKeys(env)}
+					<span class="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500"></span>
 				{/if}
 			</TabsTrigger>
 		{/each}
 	</TabsList>
 
 	{#each EnvironmentType as env (env)}
+		{@const field = getField(env)}
 		<TabsContent value={env}>
-			<div class="mt-6 space-y-4" onpaste={(e) => handlePaste(e, env)}>
-				{#if environments}
-					{#each environments[env] as secret, index (index)}
-						{@const error = getKeyError(secret.key)}
-						<div class="flex items-center gap-3">
-							<div class="flex w-full flex-col gap-1">
-								<Input
-									placeholder="KEY"
-									bind:value={secret.key}
-									oninput={() => onAutoRow(env)}
-									class={cn(secret.key && !isValidKey(secret.key) ? 'border-red-500' : '')}
-								/>
-
-								{#if error}
-									<p class="text-xs text-red-500">{error}</p>
-								{/if}
-							</div>
-
+			<div class="mt-6 space-y-4">
+				{#each field.value() ?? [] as _row, index (index)}
+					{@const keyError = getKeyError(field[index].key.value() ?? '')}
+					<div class="flex gap-3">
+						<div class="flex w-full flex-col gap-1">
 							<Input
-								placeholder="VALUE"
-								type="password"
-								bind:value={secret.value}
-								oninput={() => onAutoRow(env)}
+								placeholder="KEY"
+								{...field[index].key.as('text')}
+								class={cn(keyError ? 'border-red-500' : '')}
+								onpaste={(e) => {
+									const current = getRows(env);
+									const merged = handleEnvPaste(e, current);
+									if (merged) field.set(merged);
+								}}
 							/>
-
-							<Button variant="destructive" size="sm" onclick={() => onRemove(env, index)}>
-								X
-							</Button>
+							{#if keyError}
+								<p class="text-xs text-red-500">{keyError}</p>
+							{/if}
 						</div>
-					{/each}
-				{/if}
-
-				<Button variant="outline" onclick={() => onAdd(env)}>+ Add Secret</Button>
+						<Input placeholder="VALUE" {...field[index].value.as('password')} />
+						<Button
+							type="button"
+							variant="destructive"
+							size="sm"
+							onclick={() => {
+								const updated = getRows(env).filter((_, i) => i !== index);
+								field.set(ensureOneEmptyRow(updated));
+							}}
+						>
+							X
+						</Button>
+					</div>
+				{/each}
+				<Button
+					type="button"
+					variant="outline"
+					onclick={() => {
+						field.set([...getRows(env), { key: '', value: '' }]);
+					}}
+				>
+					+ Add Secret
+				</Button>
 			</div>
 		</TabsContent>
 	{/each}

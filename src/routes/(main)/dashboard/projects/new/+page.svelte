@@ -4,54 +4,58 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
-	import { EnvironmentType } from '$lib/shared/enums';
-	import { createEnvironmentState, cleanSecrets, isValidKey } from '$lib/features/env-manager';
+	import { isValidKey } from '$lib/features/env-manager';
 	import EnvEditor from '$lib/components/custom/env-editor.svelte';
+	import { createProject } from './project.remote';
+	import { Spinner } from '$lib/components/ui/spinner';
+	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 
-	let title = $state('');
+	const fields = createProject.fields;
 
-	let environments = $state(createEnvironmentState(EnvironmentType));
 	const hasInvalidKeys = $derived(
-		Object.values(environments).some((rows) => rows.some((r) => r.key && !isValidKey(r.key)))
+		(['development', 'staging', 'preview', 'production'] as const).some((env) =>
+			(fields[env].value() ?? []).some((r) => r?.key && !isValidKey(r.key))
+		)
 	);
-
-	async function createProject() {
-		const cleaned = Object.fromEntries(
-			Object.entries(environments).map(([env, rows]) => [env, cleanSecrets(rows)])
-		);
-
-		console.log(cleaned);
-	}
+	const isPending = $derived(!!createProject.pending);
 </script>
 
 <div class="min-h-screen bg-muted/40 px-4 py-10">
-	<div class="mx-auto max-w-4xl space-y-8">
+	<form class="mx-auto max-w-4xl space-y-8" {...createProject}>
 		<div class="space-y-2">
 			<h1 class="text-3xl font-bold">Create New Project</h1>
 			<p class="text-muted-foreground">
 				Add your environment variables before creating the project.
 			</p>
 		</div>
-
 		<Card class="shadow-xl">
 			<CardHeader>
 				<CardTitle>Project Details</CardTitle>
 			</CardHeader>
-
 			<CardContent class="space-y-6">
 				<div class="space-y-2">
 					<Label>Project Name</Label>
-					<Input placeholder="My Backend API" bind:value={title} />
+					<Input placeholder="My Backend API" {...fields.title.as('text')} />
 				</div>
-
 				<Separator />
-
-				<EnvEditor bind:environments />
+				<EnvEditor
+					development={fields.development}
+					staging={fields.staging}
+					preview={fields.preview}
+					production={fields.production}
+				/>
 			</CardContent>
 		</Card>
-
 		<div class="flex justify-end">
-			<Button size="lg" onclick={createProject} disabled={hasInvalidKeys}>Create Project</Button>
+			<Button size="lg" disabled={hasInvalidKeys || isPending}>
+				{#if isPending}
+					<Spinner />
+					Creating...
+				{:else}
+					<FolderPlus />
+					Create Project
+				{/if}
+			</Button>
 		</div>
-	</div>
+	</form>
 </div>
