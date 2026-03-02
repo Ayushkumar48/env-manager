@@ -16,3 +16,7 @@ export const CreateProjectSchema = z.object({
 export const UpdateProjectSchema = CreateProjectSchema.extend({
 	id: z.string().min(1)
 });
+
+export const DeleteProjectSchema = z.object({
+	id: z.string().min(1)
+});

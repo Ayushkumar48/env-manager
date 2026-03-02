@@ -1,15 +1,31 @@
 <script lang="ts">
-	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import ForwardIcon from '@lucide/svelte/icons/forward';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { getProjectNames } from '../../routes/(main)/dashboard/data.remote';
 	import { resolve } from '$app/paths';
 	import { Spinner } from './ui/spinner';
 	import { goto } from '$app/navigation';
+	import { deleteProject } from '../../routes/(main)/dashboard/projects/new/project.remote';
+	import { toast } from 'svelte-sonner';
+	let isLoading = $state(false);
+	let deleteProjectId = $state<string | null>(null);
+	async function handleDeleteProject(id: string) {
+		isLoading = true;
+		try {
+			await deleteProject({ id });
+		} catch (error) {
+			console.error(error);
+			toast.error('Failed to delete project');
+		} finally {
+			isLoading = false;
+		}
+	}
 </script>
 
 <Sidebar.Group>
@@ -30,64 +46,90 @@
 				Loading...
 			</Sidebar.MenuItem>
 		{:then projects}
-			{#each projects as item (item.title)}
-				<Collapsible.Root class="group/collapsible">
-					{#snippet child({ props })}
-						<Sidebar.MenuItem {...props}>
-							<Collapsible.Trigger>
-								{#snippet child({ props })}
-									<Sidebar.MenuButton {...props} tooltipContent={item.title}>
-										<span>{item.title}</span>
-										<ChevronRightIcon
-											class="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-										/>
-									</Sidebar.MenuButton>
-								{/snippet}
-							</Collapsible.Trigger>
-							<Collapsible.Content>
-								<Sidebar.MenuSub>
-									<Sidebar.MenuSubItem>
-										<Sidebar.MenuSubButton>
-											{#snippet child({ props })}
-												<a href={resolve(`/dashboard/projects/${item.id}`)} {...props}>
-													<FolderIcon class="text-muted-foreground" />
-													<span>View Project</span>
-												</a>
-											{/snippet}
-										</Sidebar.MenuSubButton>
-									</Sidebar.MenuSubItem>
-									<Sidebar.MenuSubItem>
-										<Sidebar.MenuSubButton>
-											{#snippet child({ props })}
-												<a href={resolve(`/dashboard/projects/${item.id}`)} {...props}>
-													<ForwardIcon class="text-muted-foreground" />
-													<span>Share Project</span>
-												</a>
-											{/snippet}
-										</Sidebar.MenuSubButton>
-									</Sidebar.MenuSubItem>
-									<Sidebar.MenuSubItem>
-										<Sidebar.MenuSubButton>
-											{#snippet child({ props })}
-												<a href={resolve(`/dashboard/projects/${item.id}`)} {...props}>
-													<Trash2Icon class="text-muted-foreground" />
-													<span>Delete Project</span>
-												</a>
-											{/snippet}
-										</Sidebar.MenuSubButton>
-									</Sidebar.MenuSubItem>
-								</Sidebar.MenuSub>
-							</Collapsible.Content>
-						</Sidebar.MenuItem>
-					{/snippet}
-				</Collapsible.Root>
+			{#if projects.length > 0}
+				<ol class="list-decimal pl-4">
+					{#each projects as item (item.title)}
+						<li>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<Sidebar.MenuButton {...props} tooltipContent={item.title}>
+											<span>{item.title}</span>
+											<EllipsisIcon class="ms-auto transition-transform duration-200" />
+										</Sidebar.MenuButton>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="start" side="right" class="w-56">
+									<DropdownMenu.Item
+										onclick={() => goto(resolve(`/dashboard/projects/${item.id}`))}
+									>
+										<FolderIcon class="text-muted-foreground" />
+										<span>View Project</span>
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										onclick={() => goto(resolve(`/dashboard/projects/${item.id}/share`))}
+									>
+										<ForwardIcon class="text-muted-foreground" />
+										<span>Share Project</span>
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										onSelect={(e) => {
+											e.preventDefault();
+											deleteProjectId = item.id;
+										}}
+									>
+										<Trash2Icon class="text-muted-foreground" />
+										<span>Delete Project</span>
+									</DropdownMenu.Item>
+
+									<AlertDialog.Root
+										open={deleteProjectId !== null}
+										onOpenChange={(open) => {
+											if (!open) deleteProjectId = null;
+										}}
+									>
+										<AlertDialog.Content>
+											<AlertDialog.Header>
+												<AlertDialog.Title>Confirm Deletion</AlertDialog.Title>
+												<AlertDialog.Description>
+													Are you sure you want to delete this project? This action cannot be
+													undone.
+												</AlertDialog.Description>
+											</AlertDialog.Header>
+
+											<AlertDialog.Footer>
+												<AlertDialog.Cancel disabled={isLoading}>Cancel</AlertDialog.Cancel>
+
+												<AlertDialog.Action
+													onclick={async () => {
+														if (!deleteProjectId) return;
+														await handleDeleteProject(deleteProjectId);
+														deleteProjectId = null;
+													}}
+													disabled={isLoading}
+												>
+													{#if isLoading}
+														Deleting...
+														<Spinner />
+													{:else}
+														Confirm
+													{/if}
+												</AlertDialog.Action>
+											</AlertDialog.Footer>
+										</AlertDialog.Content>
+									</AlertDialog.Root>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</li>
+					{/each}
+				</ol>
 			{:else}
 				<Sidebar.MenuItem>
-					<p class="text-sm px-4 py-2 text-muted-foreground group-data-[collapsible=icon]:hidden">
+					<p class="px-4 py-2 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">
 						No Projects yet.
 					</p>
 				</Sidebar.MenuItem>
-			{/each}
+			{/if}
 		{:catch}
 			<div class="px-4 py-2 text-sm text-red-500 group-data-[collapsible=icon]:hidden">
 				An error occurred while fetching projects.
