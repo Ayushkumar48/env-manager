@@ -20,14 +20,27 @@ export function getInitials(name: string) {
 
 export function formatDate(
 	date?: Date | string | number | null,
-	monthType: 'short' | 'long' = 'short'
+	options?: {
+		monthType?: 'short' | 'long';
+		showTime?: boolean;
+	}
 ) {
-	if (!date) return '';
-	return new Date(date).toLocaleDateString('en-US', {
+	if (date == null) return '';
+	const d = new Date(date);
+	if (isNaN(d.getTime())) return '';
+	const { monthType = 'short', showTime = false } = options ?? {};
+	const formatter = new Intl.DateTimeFormat('en-IN', {
 		year: 'numeric',
 		month: monthType,
-		day: 'numeric'
+		day: 'numeric',
+		...(showTime && {
+			hour: 'numeric',
+			minute: 'numeric',
+			hour12: true,
+			timeZoneName: 'short'
+		})
 	});
+	return formatter.format(d);
 }
 
 type Unit = 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second';

@@ -10,15 +10,35 @@
 	import Check from '@lucide/svelte/icons/check';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import PencilLine from '@lucide/svelte/icons/pencil-line';
-	import { goto } from '$app/navigation';
+	import History from '@lucide/svelte/icons/history';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { formatDate } from '$lib/utils';
+	import { toast } from 'svelte-sonner';
+	import VersionHistory from '$lib/components/custom/version-history.svelte';
+	import { rollbackToVersion } from '../new/project.remote';
 
 	let { data } = $props();
 	const project = $derived(data.project);
 	const projectId = $derived(data.projectId);
 	let visibleSecrets: Record<string, boolean> = $state({});
 	let copiedKey: string | null = $state(null);
+
+	let envSubTab: Record<string, 'secrets' | 'history'> = $state(
+		Object.fromEntries(EnvironmentType.map((e) => [e, 'secrets' as const]))
+	);
+
+	async function handleRollback(versionId: string) {
+		try {
+			await rollbackToVersion({ versionId });
+			await invalidate(`app:project:${projectId}`);
+			toast.success('Rolled back successfully!');
+		} catch (e) {
+			console.error(e);
+			toast.error('Rollback failed. Please try again.');
+			throw e;
+		}
+	}
 
 	function getSecretId(envName: string, secretKey: string): string {
 		return `${envName}-${secretKey}`;
@@ -98,9 +118,10 @@
 			<div class="space-y-1">
 				<h1 class="text-3xl font-bold tracking-tight">{project.title}</h1>
 				<p class="text-muted-foreground">
-					Created {formatDate(project.createdAt)}
-					{#if project.updatedAt.getTime() !== project.createdAt.getTime()}
-						• Updated {formatDate(project.updatedAt)}
+					{#if project.updatedAt.getTime() > project.createdAt.getTime()}
+						Updated {formatDate(project.updatedAt, { showTime: true })}
+					{:else}
+						Created {formatDate(project.createdAt, { showTime: true })}
 					{/if}
 				</p>
 			</div>
@@ -140,53 +161,84 @@
 									{envData?.secrets.length ?? 0} secret{envData?.secrets.length !== 1 ? 's' : ''}
 								</p>
 							</div>
-							<div class="flex gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => {
-										const content = exportAsEnv(envName);
-										downloadFile(
-											content,
-											`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.env`
-										);
-									}}
-								>
-									<Download class="mr-2 h-4 w-4" />
-									.env
-								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => {
-										const content = exportAsJson(envName);
-										downloadFile(
-											content,
-											`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.json`
-										);
-									}}
-								>
-									<Download class="mr-2 h-4 w-4" />
-									JSON
-								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() => {
-										const content = exportAsDotNetJson(envName);
-										downloadFile(
-											content,
-											`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.appsettings.json`
-										);
-									}}
-								>
-									<Download class="mr-2 h-4 w-4" />
-									.NET
-								</Button>
+							<div class="flex items-center gap-2">
+								<!-- sub-tab toggle -->
+								<div class="flex rounded-md border p-0.5">
+									<button
+										class="rounded px-2.5 py-1 text-xs font-medium transition-colors {envSubTab[
+											envName
+										] === 'secrets'
+											? 'bg-primary text-primary-foreground'
+											: 'text-muted-foreground hover:text-foreground'}"
+										onclick={() => (envSubTab[envName] = 'secrets')}
+									>
+										Secrets
+									</button>
+									<button
+										class="flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors {envSubTab[
+											envName
+										] === 'history'
+											? 'bg-primary text-primary-foreground'
+											: 'text-muted-foreground hover:text-foreground'}"
+										onclick={() => (envSubTab[envName] = 'history')}
+									>
+										<History class="h-3 w-3" />
+										History
+									</button>
+								</div>
+
+								{#if envSubTab[envName] === 'secrets'}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => {
+											const content = exportAsEnv(envName);
+											downloadFile(
+												content,
+												`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.env`
+											);
+										}}
+									>
+										<Download class="mr-2 h-4 w-4" />
+										.env
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => {
+											const content = exportAsJson(envName);
+											downloadFile(
+												content,
+												`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.json`
+											);
+										}}
+									>
+										<Download class="mr-2 h-4 w-4" />
+										JSON
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => {
+											const content = exportAsDotNetJson(envName);
+											downloadFile(
+												content,
+												`${project.title.toLowerCase().replace(/\s+/g, '-')}-${envName}.appsettings.json`
+											);
+										}}
+									>
+										<Download class="mr-2 h-4 w-4" />
+										.NET
+									</Button>
+								{/if}
 							</div>
 						</CardHeader>
 						<CardContent>
-							{#if !envData || envData.secrets.length === 0}
+							{#if envSubTab[envName] === 'history'}
+								{#if envData}
+									<VersionHistory environmentId={envData.id} onRollback={handleRollback} />
+								{/if}
+							{:else if !envData || envData.secrets.length === 0}
 								<div class="flex flex-col items-center justify-center py-12 text-center">
 									<div class="mb-4 rounded-full bg-muted p-4">
 										<svg

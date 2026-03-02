@@ -21,6 +21,19 @@ export const DeleteProjectSchema = z.object({
 	id: z.string().min(1)
 });
 
+export const GetEnvironmentHistorySchema = z.object({
+	environmentId: z.string().min(1)
+});
+
+export const GetVersionDiffSchema = z.object({
+	fromVersionId: z.string().min(1),
+	toVersionId: z.string().min(1)
+});
+
+export const RollbackSchema = z.object({
+	versionId: z.string().min(1)
+});
+
 export const GetProjectSchemaFilters = z
 	.object({
 		title: z.string().optional(),

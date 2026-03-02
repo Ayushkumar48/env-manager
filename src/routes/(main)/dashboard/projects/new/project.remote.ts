@@ -1,14 +1,76 @@
 import { error, redirect } from '@sveltejs/kit';
 import { command, form, getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
-import { projects, environments, secrets, secretVersions, user } from '$lib/server/db/schema';
+import {
+	projects,
+	environments,
+	secrets,
+	secretVersions,
+	environmentVersions,
+	environmentVersionSecrets,
+	user
+} from '$lib/server/db/schema';
 import { auth } from '$lib/server/auth';
 import { CreateProjectSchema, DeleteProjectSchema, UpdateProjectSchema } from '$lib/shared/schema';
 import { generateId } from '$lib/server/utils';
 import { EnvironmentType } from '$lib/shared/enums';
-import { and, eq, inArray, max } from 'drizzle-orm';
+import { and, eq, inArray, max, sql } from 'drizzle-orm';
 import { getProjectNames } from '../../data.remote';
 import { generateDek, encryptSecret, decryptDek, decryptSecret } from '$lib/server/crypto';
+
+async function snapshotEnvironment(
+	tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+	environmentId: string,
+	userId: string
+) {
+	const [{ nextVersion }] = await tx
+		.select({
+			nextVersion: sql<number>`coalesce(max(${environmentVersions.versionNumber}), 0) + 1`
+		})
+		.from(environmentVersions)
+		.where(eq(environmentVersions.environmentId, environmentId));
+
+	const envVersionId = generateId();
+
+	await tx.insert(environmentVersions).values({
+		id: envVersionId,
+		environmentId,
+		versionNumber: nextVersion,
+		createdBy: userId
+	});
+
+	const envSecrets = await tx.query.secrets.findMany({
+		where: eq(secrets.environmentId, environmentId),
+		with: {
+			versions: {
+				orderBy: (sv, { desc }) => [desc(sv.version)],
+				limit: 1
+			}
+		}
+	});
+
+	const snapshotRows: (typeof environmentVersionSecrets.$inferInsert)[] = [];
+
+	for (const s of envSecrets) {
+		const latest = s.versions[0];
+		if (!latest) continue;
+		snapshotRows.push({
+			id: generateId(),
+			environmentVersionId: envVersionId,
+			key: s.key,
+			encryptedValue: latest.encryptedValue
+		});
+	}
+
+	if (snapshotRows.length > 0) {
+		await tx.insert(environmentVersionSecrets).values(snapshotRows);
+	}
+
+	return envVersionId;
+}
+
+import type { db as DbType } from '$lib/server/db';
+type Tx = Parameters<Parameters<(typeof DbType)['transaction']>[0]>[0];
 
 export const createProject = form(CreateProjectSchema, async (data) => {
 	const { title } = data;
@@ -84,6 +146,10 @@ export const createProject = form(CreateProjectSchema, async (data) => {
 		if (secretVersionRecords.length > 0) {
 			await tx.insert(secretVersions).values(secretVersionRecords);
 		}
+
+		for (const envRecord of envRecords) {
+			await snapshotEnvironment(tx as unknown as Tx, envRecord.id, session.user.id);
+		}
 	});
 	await getProjectNames({ limit: 5 }).refresh();
 	await getProjectNames().refresh();
@@ -109,7 +175,6 @@ export const updateProject = form(UpdateProjectSchema, async (data) => {
 
 		if (!existingProject) error(404, 'Project not found');
 
-		// Unwrap the project DEK so we can encrypt new/updated secret values
 		const dek = await decryptDek(existingProject.encryptedDek);
 
 		await tx
@@ -178,9 +243,6 @@ export const updateProject = form(UpdateProjectSchema, async (data) => {
 					const currentVersion = latestVersionMap.get(existingSecret.id);
 
 					if (currentVersion !== undefined) {
-						// Fetch only the latest version row so we can decrypt and compare
-						// plaintexts — ciphertexts cannot be compared directly because
-						// each AES-GCM encryption uses a unique random IV.
 						const [latestVersion] = await tx
 							.select({
 								encryptedValue: secretVersions.encryptedValue
@@ -253,6 +315,24 @@ export const updateProject = form(UpdateProjectSchema, async (data) => {
 				.set({ updatedAt: new Date() })
 				.where(inArray(secrets.id, secretsToTouch));
 		}
+		const changedEnvIds = new Set<string>();
+		for (const r of [...newSecretRecords, ...newVersionRecords]) {
+			if ('environmentId' in r) {
+				changedEnvIds.add(r.environmentId as string);
+			}
+		}
+		for (const secretId of secretsToTouch) {
+			const s = allSecrets.find((x) => x.id === secretId);
+			if (s) changedEnvIds.add(s.environmentId);
+		}
+		for (const secretId of secretIdsToDelete) {
+			const s = allSecrets.find((x) => x.id === secretId);
+			if (s) changedEnvIds.add(s.environmentId);
+		}
+
+		for (const envId of changedEnvIds) {
+			await snapshotEnvironment(tx as unknown as Tx, envId, session.user.id);
+		}
 	});
 
 	await getProjectNames({ limit: 5 }).refresh();
@@ -282,3 +362,237 @@ export const deleteProject = command(DeleteProjectSchema, async ({ id }) => {
 
 export type RemoteUpdateProjectType = typeof updateProject;
 export type RemoteCreateProjectType = typeof createProject;
+
+import { query } from '$app/server';
+import {
+	GetEnvironmentHistorySchema,
+	RollbackSchema,
+	GetVersionDiffSchema
+} from '$lib/shared/schema';
+
+export const getEnvironmentHistory = query(
+	GetEnvironmentHistorySchema,
+	async ({ environmentId }) => {
+		const rows = await db.query.environmentVersions.findMany({
+			where: eq(environmentVersions.environmentId, environmentId),
+			orderBy: (ev, { desc }) => [desc(ev.versionNumber)],
+			with: {
+				createdByUser: {
+					columns: { id: true, name: true, image: true }
+				},
+				secrets: {
+					columns: { key: true }
+				}
+			}
+		});
+
+		return rows.map((r) => ({
+			id: r.id,
+			versionNumber: r.versionNumber,
+			createdAt: r.createdAt,
+			createdBy: r.createdByUser
+				? { id: r.createdByUser.id, name: r.createdByUser.name, image: r.createdByUser.image }
+				: null,
+			secretCount: r.secrets.length
+		}));
+	}
+);
+
+export type DiffEntry =
+	| { type: 'added'; key: string }
+	| { type: 'removed'; key: string }
+	| { type: 'modified'; key: string }
+	| { type: 'unchanged'; key: string };
+
+export const getVersionDiff = query(
+	GetVersionDiffSchema,
+	async ({ fromVersionId, toVersionId }) => {
+		const [fromVersion, toVersion] = await Promise.all([
+			db.query.environmentVersions.findFirst({
+				where: eq(environmentVersions.id, fromVersionId),
+				with: { secrets: true }
+			}),
+			db.query.environmentVersions.findFirst({
+				where: eq(environmentVersions.id, toVersionId),
+				with: { secrets: true }
+			})
+		]);
+
+		if (!fromVersion || !toVersion) {
+			error(404, 'Version not found');
+		}
+
+		if (fromVersion.environmentId !== toVersion.environmentId) {
+			error(400, 'Versions belong to different environments');
+		}
+
+		const environment = await db.query.environments.findFirst({
+			where: eq(environments.id, fromVersion.environmentId),
+			with: { project: true }
+		});
+
+		if (!environment) error(404, 'Environment not found');
+
+		const dek = await decryptDek(environment.project.encryptedDek);
+
+		const fromMap = new Map(fromVersion.secrets.map((s) => [s.key, s.encryptedValue]));
+		const toMap = new Map(toVersion.secrets.map((s) => [s.key, s.encryptedValue]));
+
+		const allKeys = new Set([...fromMap.keys(), ...toMap.keys()]);
+		const diff: DiffEntry[] = [];
+
+		for (const key of allKeys) {
+			const inFrom = fromMap.has(key);
+			const inTo = toMap.has(key);
+
+			if (!inFrom && inTo) {
+				diff.push({ type: 'added', key });
+			} else if (inFrom && !inTo) {
+				diff.push({ type: 'removed', key });
+			} else if (inFrom && inTo) {
+				const [fromPlain, toPlain] = await Promise.all([
+					decryptSecret(dek, fromMap.get(key)!),
+					decryptSecret(dek, toMap.get(key)!)
+				]);
+				diff.push({ type: fromPlain === toPlain ? 'unchanged' : 'modified', key });
+			}
+		}
+
+		const order: Record<DiffEntry['type'], number> = {
+			added: 0,
+			modified: 1,
+			removed: 2,
+			unchanged: 3
+		};
+		diff.sort((a, b) => order[a.type] - order[b.type] || a.key.localeCompare(b.key));
+
+		return {
+			from: { id: fromVersion.id, versionNumber: fromVersion.versionNumber },
+			to: { id: toVersion.id, versionNumber: toVersion.versionNumber },
+			diff
+		};
+	}
+);
+
+export const rollbackToVersion = command(RollbackSchema, async ({ versionId }) => {
+	const event = getRequestEvent();
+	if (!event) error(500, 'No request event');
+
+	const session = await auth.api.getSession({ headers: event.request.headers });
+	if (!session?.user) error(401, 'Unauthorized');
+
+	const targetVersion = await db.query.environmentVersions.findFirst({
+		where: eq(environmentVersions.id, versionId),
+		with: {
+			secrets: true,
+			environment: {
+				with: { project: true }
+			}
+		}
+	});
+
+	if (!targetVersion) error(404, 'Version not found');
+
+	if (targetVersion.environment.project.userId !== session.user.id) {
+		error(403, 'Forbidden');
+	}
+
+	const project = targetVersion.environment.project;
+	const dek = await decryptDek(project.encryptedDek);
+
+	const plaintextSecrets = await Promise.all(
+		targetVersion.secrets.map(async (s) => ({
+			key: s.key,
+			value: await decryptSecret(dek, s.encryptedValue)
+		}))
+	);
+
+	const environmentId = targetVersion.environmentId;
+
+	await db.transaction(async (tx) => {
+		const existingSecrets = await tx.query.secrets.findMany({
+			where: eq(secrets.environmentId, environmentId)
+		});
+		const existingMap = new Map(existingSecrets.map((s) => [s.key, s]));
+		const rollbackSecretIds = new Set(plaintextSecrets.map((p) => p.key));
+		const toInsertSecrets: (typeof secrets.$inferInsert)[] = [];
+		const toInsertVersions: (typeof secretVersions.$inferInsert)[] = [];
+		const toDeleteSecretIds: string[] = [];
+		const latestVersionRows = existingSecrets.length
+			? await tx
+					.select({
+						secretId: secretVersions.secretId,
+						version: max(secretVersions.version).as('version')
+					})
+					.from(secretVersions)
+					.where(
+						inArray(
+							secretVersions.secretId,
+							existingSecrets.map((s) => s.id)
+						)
+					)
+					.groupBy(secretVersions.secretId)
+			: [];
+
+		const latestVersionMap = new Map(latestVersionRows.map((r) => [r.secretId, r.version ?? 0]));
+
+		for (const { key, value } of plaintextSecrets) {
+			const existing = existingMap.get(key);
+			if (!existing) {
+				const secretId = generateId();
+				toInsertSecrets.push({ id: secretId, key, environmentId });
+				toInsertVersions.push({
+					id: generateId(),
+					secretId,
+					encryptedValue: await encryptSecret(dek, value),
+					version: 1
+				});
+			} else {
+				const currentVersion = latestVersionMap.get(existing.id) ?? 0;
+				const [latestRow] = await tx
+					.select({ encryptedValue: secretVersions.encryptedValue })
+					.from(secretVersions)
+					.where(
+						and(
+							eq(secretVersions.secretId, existing.id),
+							eq(secretVersions.version, currentVersion)
+						)
+					)
+					.limit(1);
+
+				if (latestRow) {
+					const storedPlain = await decryptSecret(dek, latestRow.encryptedValue);
+					if (storedPlain !== value) {
+						toInsertVersions.push({
+							id: generateId(),
+							secretId: existing.id,
+							encryptedValue: await encryptSecret(dek, value),
+							version: currentVersion + 1
+						});
+					}
+				}
+			}
+		}
+
+		for (const s of existingSecrets) {
+			if (!rollbackSecretIds.has(s.key)) {
+				toDeleteSecretIds.push(s.id);
+			}
+		}
+
+		if (toInsertSecrets.length) await tx.insert(secrets).values(toInsertSecrets);
+		if (toInsertVersions.length) await tx.insert(secretVersions).values(toInsertVersions);
+		if (toDeleteSecretIds.length) {
+			await tx.delete(secrets).where(inArray(secrets.id, toDeleteSecretIds));
+		}
+		await tx.update(projects).set({ updatedAt: new Date() }).where(eq(projects.id, project.id));
+		await snapshotEnvironment(tx as unknown as Tx, environmentId, session.user.id);
+	});
+
+	await getProjectNames({ limit: 5 }).refresh();
+	await getProjectNames().refresh();
+});
+
+export type RemoteGetEnvironmentHistoryType = typeof getEnvironmentHistory;
+export type RemoteGetVersionDiffType = typeof getVersionDiff;
+export type RemoteRollbackType = typeof rollbackToVersion;

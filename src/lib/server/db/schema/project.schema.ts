@@ -72,6 +72,46 @@ export const secretVersions = pgTable(
 	]
 );
 
+// ---------------------------------------------------------------------------
+// Environment version snapshots (Git-like history)
+// ---------------------------------------------------------------------------
+// Each time an environment is saved, one environmentVersion row is created.
+// environmentVersionSecrets holds the full key/value snapshot for that version.
+
+export const environmentVersions = pgTable(
+	'environment_versions',
+	{
+		id: text('id').primaryKey(),
+		environmentId: text('environment_id')
+			.references(() => environments.id, { onDelete: 'cascade' })
+			.notNull(),
+		versionNumber: integer('version_number').notNull(),
+		createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(table) => [
+		uniqueIndex('unique_env_version').on(table.environmentId, table.versionNumber),
+		index('env_versions_env_idx').on(table.environmentId),
+		index('env_versions_created_by_idx').on(table.createdBy)
+	]
+);
+
+export const environmentVersionSecrets = pgTable(
+	'environment_version_secrets',
+	{
+		id: text('id').primaryKey(),
+		environmentVersionId: text('environment_version_id')
+			.references(() => environmentVersions.id, { onDelete: 'cascade' })
+			.notNull(),
+		key: text('key').notNull(),
+		encryptedValue: text('encrypted_value').notNull()
+	},
+	(table) => [
+		index('env_version_secrets_version_idx').on(table.environmentVersionId),
+		index('env_version_secrets_key_idx').on(table.key)
+	]
+);
+
 export const projectRelations = relations(projects, ({ many }) => ({
 	environments: many(environments)
 }));
@@ -81,7 +121,8 @@ export const environmentRelations = relations(environments, ({ one, many }) => (
 		fields: [environments.projectId],
 		references: [projects.id]
 	}),
-	secrets: many(secrets)
+	secrets: many(secrets),
+	versions: many(environmentVersions)
 }));
 
 export const secretRelations = relations(secrets, ({ one, many }) => ({
@@ -98,3 +139,25 @@ export const secretVersionRelations = relations(secretVersions, ({ one }) => ({
 		references: [secrets.id]
 	})
 }));
+
+export const environmentVersionRelations = relations(environmentVersions, ({ one, many }) => ({
+	environment: one(environments, {
+		fields: [environmentVersions.environmentId],
+		references: [environments.id]
+	}),
+	createdByUser: one(user, {
+		fields: [environmentVersions.createdBy],
+		references: [user.id]
+	}),
+	secrets: many(environmentVersionSecrets)
+}));
+
+export const environmentVersionSecretRelations = relations(
+	environmentVersionSecrets,
+	({ one }) => ({
+		environmentVersion: one(environmentVersions, {
+			fields: [environmentVersionSecrets.environmentVersionId],
+			references: [environmentVersions.id]
+		})
+	})
+);
