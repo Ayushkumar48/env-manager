@@ -1,8 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { projects } from '$lib/server/db/schema';
+import { projects, environments } from '$lib/server/db/schema';
 import { eq, isNull, desc, and } from 'drizzle-orm';
 import { generateId } from '$lib/server/utils';
+import { EnvironmentType } from '$lib/shared/enums';
 
 export async function GET({ locals }) {
 	if (!locals.user) {
@@ -54,6 +55,15 @@ export async function POST({ locals, request }) {
 			createdAt: projects.createdAt,
 			updatedAt: projects.updatedAt
 		});
+
+	// Create default environments for the new project
+	const environmentsToCreate = EnvironmentType.map((envName) => ({
+		id: generateId(),
+		name: envName,
+		projectId: projectId
+	}));
+
+	await db.insert(environments).values(environmentsToCreate);
 
 	return json(
 		{

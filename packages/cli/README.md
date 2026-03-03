@@ -36,7 +36,10 @@ vaultsy pull
 # 5. Push local changes back up
 vaultsy push
 
-# 6. Run a command with secrets injected — nothing ever touches disk
+# 6. Or manually type in secrets one by one
+vaultsy set
+
+# 7. Run a command with secrets injected — nothing ever touches disk
 vaultsy run -- node server.js
 ```
 
@@ -257,6 +260,8 @@ vaultsy push <project-id> production --yes
 
 The push is a **full replace** — keys present in Vaultsy but absent from your local file will be deleted. Always review the diff before confirming.
 
+> **Tip:** If you don't have a local `.env` file and just want to type secrets in manually, use [`vaultsy set`](#vaultsy-set-project-env) instead.
+
 Output example:
 
 ```
@@ -276,6 +281,78 @@ A new version snapshot is created automatically on every successful push, so you
 |---|---|
 | `-i, --input <file>` | Override the input file path |
 | `-y, --yes` | Skip the diff confirmation prompt |
+
+---
+
+### `vaultsy set [project] [env]`
+
+Interactively add or update secrets one by one directly in the terminal — no local `.env` file needed. After each secret you're asked whether to add another. Existing keys not mentioned are **preserved**; re-entered keys are **overwritten**.
+
+```sh
+# Interactive — picks project and env from a list
+vaultsy set
+
+# With vaultsy.json in the current directory (no args needed)
+vaultsy set
+
+# Explicit project and environment
+vaultsy set <project-id> production
+```
+
+Example session:
+
+```
+┌  vaultsy set
+│
+●  Using project Vaultsy from vaultsy.json
+│
+◆  Select an environment
+│  ● development
+│
+◇  Loaded 0 existing secrets.
+│
+●  Adding secrets to Vaultsy / development.
+│  Existing keys will be overwritten if you re-enter them.
+│
+◆  Key
+│  DATABASE_URL
+│
+◆  Value for DATABASE_URL
+│  ••••••••••••
+│
+◇  + DATABASE_URL
+│
+◆  Add another secret?
+│  ● Yes / ○ No
+│
+◆  Key
+│  API_KEY
+│
+◆  Value for API_KEY
+│  ••••••••
+│
+◇  + API_KEY
+│
+◆  Add another secret?
+│  ○ Yes / ● No
+│
+  + DATABASE_URL
+  + API_KEY
+
+  +2 to add
+
+◆  Push 2 secrets to Vaultsy / development?
+│  ● Yes / ○ No
+│
+└  ✓ Vaultsy / development updated successfully.
+```
+
+**Behaviour:**
+- Values are masked while typing (shown as `••••••••`) — nothing is visible on screen.
+- You are warned if a key already exists remotely and will be overwritten.
+- Keys you don't mention are left untouched on the remote.
+- A diff summary is shown before the final push so you can review what changes.
+- A version snapshot is created automatically on every successful push.
 
 ---
 

@@ -71,6 +71,7 @@ The CLI communicates with the app through these endpoints. All require `Authoriz
 |---|---|---|
 | `GET` | `/api/v1/me` | Verify token, return authenticated user |
 | `GET` | `/api/v1/projects` | List all projects |
+| `POST` | `/api/v1/projects` | Create a new project |
 | `GET` | `/api/v1/projects/[id]/envs/[env]` | Pull decrypted secrets for an environment |
 | `POST` | `/api/v1/projects/[id]/envs/[env]` | Push secrets (full replace + snapshot) |
 | `GET` | `/api/v1/projects/[id]/envs/[env]/versions` | List version history |
@@ -163,8 +164,10 @@ The official CLI is published to npm as [`vaultsy-cli`](https://www.npmjs.com/pa
 ```sh
 npm install -g vaultsy-cli
 vaultsy login
-vaultsy pull
-vaultsy push
+vaultsy create           # create a new project
+vaultsy set              # manually type in secrets one by one
+vaultsy pull             # pull secrets to a local .env file
+vaultsy push             # push a local .env file up to Vaultsy
 vaultsy run -- node server.js
 ```
 

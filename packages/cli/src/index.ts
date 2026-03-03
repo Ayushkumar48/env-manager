@@ -4,6 +4,7 @@ import { EnvironmentType } from '@vaultsy/shared';
 import type { Environment } from '@vaultsy/shared';
 import { loginCommand } from './commands/login.js';
 import { createCommand } from './commands/create.js';
+import { setCommand } from './commands/set.js';
 import { pullCommand } from './commands/pull.js';
 import { pushCommand } from './commands/push.js';
 import { historyCommand } from './commands/history.js';
@@ -37,6 +38,14 @@ program
 	.option('-t, --title <title>', 'Project title (skip the interactive prompt)')
 	.action(async (opts: { title?: string }) => {
 		await createCommand(opts);
+	});
+
+// ── set ──────────────────────────────────────────────────────────────────────
+program
+	.command('set [project] [env]')
+	.description('Interactively add or update secrets for an environment')
+	.action(async (project: string | undefined, env: string | undefined) => {
+		await setCommand(project, env);
 	});
 
 // ── logout ───────────────────────────────────────────────────────────────────
