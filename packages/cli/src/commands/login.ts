@@ -1,45 +1,16 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { writeConfig, readConfig, configExists } from '../lib/config.js';
-import { getMe } from '../lib/api.js';
-import { ApiError } from '../lib/api.js';
+import { writeConfig } from '../lib/config.js';
+import { getMe, ApiError } from '../lib/api.js';
+
+const DEFAULT_BASE_URL = 'https://vaultsy.app';
 
 export async function loginCommand(opts: { token?: string; baseUrl?: string }): Promise<void> {
 	p.intro(chalk.bold.cyan('vaultsy login'));
 
-	// ── Resolve base URL ────────────────────────────────────────────────────
-	let baseUrl: string;
-
-	if (opts.baseUrl) {
-		baseUrl = opts.baseUrl;
-	} else if (configExists()) {
-		try {
-			baseUrl = readConfig().baseUrl;
-		} catch {
-			baseUrl = 'https://vaultsy.app';
-		}
-	} else {
-		baseUrl = 'https://vaultsy.app';
-	}
-
-	const resolvedBaseUrl = await p.text({
-		message: 'Vaultsy base URL',
-		placeholder: 'https://vaultsy.app',
-		initialValue: baseUrl,
-		validate(value) {
-			if (!value.trim()) return 'Base URL is required.';
-			try {
-				new URL(value.trim());
-			} catch {
-				return 'Enter a valid URL (e.g. https://vaultsy.app).';
-			}
-		}
-	});
-
-	if (p.isCancel(resolvedBaseUrl)) {
-		p.cancel('Login cancelled.');
-		process.exit(0);
-	}
+	// Use --base-url if provided, otherwise silently use the production URL.
+	// Self-hosters can override with: vaultsy login --base-url https://my-instance.com
+	const baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
 
 	// ── Resolve token ────────────────────────────────────────────────────────
 	let token: string;
@@ -47,9 +18,7 @@ export async function loginCommand(opts: { token?: string; baseUrl?: string }): 
 	if (opts.token) {
 		token = opts.token;
 	} else {
-		p.log.info(
-			`Create a token at ${chalk.cyan(resolvedBaseUrl.replace(/\/$/, '') + '/dashboard/settings')}`
-		);
+		p.log.info(`Create a token at ${chalk.cyan(baseUrl + '/dashboard/settings')}`);
 
 		const input = await p.password({
 			message: 'Paste your API token',
@@ -74,10 +43,7 @@ export async function loginCommand(opts: { token?: string; baseUrl?: string }): 
 	let userEmail: string;
 
 	try {
-		const me = await getMe({
-			baseUrl: resolvedBaseUrl.trim().replace(/\/$/, ''),
-			token
-		});
+		const me = await getMe({ baseUrl, token });
 		userName = me.name;
 		userEmail = me.email;
 		spinner.stop('Token verified.');
@@ -91,19 +57,14 @@ export async function loginCommand(opts: { token?: string; baseUrl?: string }): 
 				p.log.error(`Server responded with ${err.status}: ${err.message}`);
 			}
 		} else {
-			p.log.error(
-				`Could not reach ${resolvedBaseUrl}. Check the URL and your network connection.`
-			);
+			p.log.error(`Could not reach ${baseUrl}. Check your network connection.`);
 		}
 
 		process.exit(1);
 	}
 
 	// ── Persist config ───────────────────────────────────────────────────────
-	writeConfig({
-		token,
-		baseUrl: resolvedBaseUrl.trim().replace(/\/$/, '')
-	});
+	writeConfig({ token, baseUrl });
 
 	p.outro(
 		`${chalk.green('✓')} Logged in as ${chalk.bold(userName)} ${chalk.dim(`<${userEmail}>`)}\n` +

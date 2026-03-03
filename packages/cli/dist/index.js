@@ -158,8 +158,8 @@ __export(env_exports, {
 });
 import { readFileSync as readFileSync2, writeFileSync as writeFileSync2, existsSync as existsSync2 } from "fs";
 import { join as join2, resolve } from "path";
-function parseEnvText(text2) {
-  const lines = text2.split(/\r?\n/);
+function parseEnvText(text) {
+  const lines = text.split(/\r?\n/);
   const result = [];
   for (const rawLine of lines) {
     let line = rawLine.trim();
@@ -265,47 +265,17 @@ var EnvironmentType = ["development", "staging", "preview", "production"];
 // src/commands/login.ts
 init_config();
 init_api();
-init_api();
 import * as p from "@clack/prompts";
 import chalk from "chalk";
+var DEFAULT_BASE_URL = "https://vaultsy.app";
 async function loginCommand(opts) {
   p.intro(chalk.bold.cyan("vaultsy login"));
-  let baseUrl;
-  if (opts.baseUrl) {
-    baseUrl = opts.baseUrl;
-  } else if (configExists()) {
-    try {
-      baseUrl = readConfig().baseUrl;
-    } catch {
-      baseUrl = "https://vaultsy.app";
-    }
-  } else {
-    baseUrl = "https://vaultsy.app";
-  }
-  const resolvedBaseUrl = await p.text({
-    message: "Vaultsy base URL",
-    placeholder: "https://vaultsy.app",
-    initialValue: baseUrl,
-    validate(value) {
-      if (!value.trim()) return "Base URL is required.";
-      try {
-        new URL(value.trim());
-      } catch {
-        return "Enter a valid URL (e.g. https://vaultsy.app).";
-      }
-    }
-  });
-  if (p.isCancel(resolvedBaseUrl)) {
-    p.cancel("Login cancelled.");
-    process.exit(0);
-  }
+  const baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   let token;
   if (opts.token) {
     token = opts.token;
   } else {
-    p.log.info(
-      `Create a token at ${chalk.cyan(resolvedBaseUrl.replace(/\/$/, "") + "/dashboard/settings")}`
-    );
+    p.log.info(`Create a token at ${chalk.cyan(baseUrl + "/dashboard/settings")}`);
     const input = await p.password({
       message: "Paste your API token",
       validate(value) {
@@ -323,10 +293,7 @@ async function loginCommand(opts) {
   let userName;
   let userEmail;
   try {
-    const me = await getMe({
-      baseUrl: resolvedBaseUrl.trim().replace(/\/$/, ""),
-      token
-    });
+    const me = await getMe({ baseUrl, token });
     userName = me.name;
     userEmail = me.email;
     spinner7.stop("Token verified.");
@@ -339,16 +306,11 @@ async function loginCommand(opts) {
         p.log.error(`Server responded with ${err.status}: ${err.message}`);
       }
     } else {
-      p.log.error(
-        `Could not reach ${resolvedBaseUrl}. Check the URL and your network connection.`
-      );
+      p.log.error(`Could not reach ${baseUrl}. Check your network connection.`);
     }
     process.exit(1);
   }
-  writeConfig({
-    token,
-    baseUrl: resolvedBaseUrl.trim().replace(/\/$/, "")
-  });
+  writeConfig({ token, baseUrl });
   p.outro(
     `${chalk.green("\u2713")} Logged in as ${chalk.bold(userName)} ${chalk.dim(`<${userEmail}>`)}
   Config saved to ${chalk.dim("~/.vaultsy/config.json")}`
