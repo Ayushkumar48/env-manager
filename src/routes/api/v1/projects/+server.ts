@@ -4,6 +4,7 @@ import { projects, environments } from '$lib/server/db/schema';
 import { eq, isNull, desc, and } from 'drizzle-orm';
 import { generateId } from '$lib/server/utils';
 import { EnvironmentType } from '$lib/shared/enums';
+import { generateDek } from '$lib/server/crypto';
 
 export async function GET({ locals }) {
 	if (!locals.user) {
@@ -41,13 +42,15 @@ export async function POST({ locals, request }) {
 	}
 
 	const projectId = generateId();
+	const { encryptedDek } = await generateDek();
 
 	const newProject = await db
 		.insert(projects)
 		.values({
 			id: projectId,
 			title: title.trim(),
-			userId: locals.user.id
+			userId: locals.user.id,
+			encryptedDek
 		})
 		.returning({
 			id: projects.id,
@@ -56,7 +59,7 @@ export async function POST({ locals, request }) {
 			updatedAt: projects.updatedAt
 		});
 
-	// Create default environments for the new project
+	// Create all four default environments for the new project
 	const environmentsToCreate = EnvironmentType.map((envName) => ({
 		id: generateId(),
 		name: envName,
