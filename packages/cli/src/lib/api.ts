@@ -11,6 +11,11 @@ export type Project = {
 	updatedAt: string;
 };
 
+export type CreateProjectResponse = {
+	ok: boolean;
+	project: Project;
+};
+
 export type SecretRow = {
 	key: string;
 	value: string;
@@ -177,5 +182,13 @@ export async function rollback(
 	return apiFetch<RollbackResponse>(`/api/v1/projects/${projectId}/envs/${env}/rollback`, {
 		method: 'POST',
 		body: JSON.stringify({ versionId })
+	});
+}
+
+/** Create a new project. */
+export async function createProject(title: string): Promise<CreateProjectResponse> {
+	return apiFetch<CreateProjectResponse>('/api/v1/projects', {
+		method: 'POST',
+		body: JSON.stringify({ title })
 	});
 }

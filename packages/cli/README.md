@@ -24,16 +24,19 @@ bun add -g vaultsy-cli
 # 1. Authenticate (opens a token prompt — no URL needed)
 vaultsy login
 
-# 2. Pin a project to the current directory (optional but recommended)
+# 2. Create a new project (or skip if you already have one)
+vaultsy create
+
+# 3. Pin a project to the current directory (optional but recommended)
 vaultsy init
 
-# 3. Pull secrets to a local .env file
+# 4. Pull secrets to a local .env file
 vaultsy pull
 
-# 4. Push local changes back up
+# 5. Push local changes back up
 vaultsy push
 
-# 5. Run a command with secrets injected — nothing ever touches disk
+# 6. Run a command with secrets injected — nothing ever touches disk
 vaultsy run -- node server.js
 ```
 
@@ -91,6 +94,28 @@ Remove locally stored credentials.
 ```sh
 vaultsy logout
 ```
+
+---
+
+### `vaultsy create`
+
+Create a new project on your Vaultsy instance.
+
+```sh
+# Interactive prompt
+vaultsy create
+
+# With project title
+vaultsy create --title "My Project"
+```
+
+You'll be asked if you want to save the project config to `vaultsy.json` in the current directory. This is optional but recommended.
+
+#### Options
+
+| Flag | Description |
+|---|---|
+| `-t, --title <title>` | Project title (skips the interactive prompt) |
 
 ---
 
