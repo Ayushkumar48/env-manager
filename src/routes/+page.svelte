@@ -10,6 +10,57 @@
 	} from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
+	import Lock from '@lucide/svelte/icons/lock';
+	import Zap from '@lucide/svelte/icons/zap';
+	import Brain from '@lucide/svelte/icons/brain';
+	import Globe from '@lucide/svelte/icons/globe';
+	import Users from '@lucide/svelte/icons/users';
+	import Hammer from '@lucide/svelte/icons/hammer';
+
+	const projectHighlights = [
+		{
+			title: 'Secure Vault',
+			icon: Lock,
+			color: 'text-emerald-600',
+			description: 'End-to-end encrypted secrets storage.',
+			content: 'Role-based access control and secure secret versioning.'
+		},
+		{
+			title: 'Instant Sync',
+			icon: Zap,
+			color: 'text-yellow-500',
+			description: 'Deploy env changes in seconds.',
+			content: 'Sync across development, staging, preview, and production.'
+		},
+		{
+			title: 'Smart Versioning',
+			icon: Brain,
+			color: 'text-purple-500',
+			description: 'Track and rollback safely.',
+			content: 'Every change is logged and recoverable.'
+		},
+		{
+			title: 'Multi-Environment',
+			icon: Globe,
+			color: 'text-blue-500',
+			description: 'Separate configs per stage.',
+			content: 'Development, staging, preview, production — cleanly separated.'
+		},
+		{
+			title: 'Team Access',
+			icon: Users,
+			color: 'text-pink-500',
+			description: 'Collaborate securely.',
+			content: 'Invite teammates and control permissions easily.'
+		},
+		{
+			title: 'Developer Friendly',
+			icon: Hammer,
+			color: 'text-orange-500',
+			description: 'Simple CLI & API.',
+			content: 'Integrate with CI/CD and automate deployments.'
+		}
+	];
 </script>
 
 <Navbar />
@@ -46,53 +97,19 @@
 	</div>
 
 	<div class="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>🔐 Secure Vault</CardTitle>
-				<CardDescription>End-to-end encrypted secrets storage.</CardDescription>
-			</CardHeader>
-			<CardContent>Role-based access control and secure secret versioning.</CardContent>
-		</Card>
-
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>⚡ Instant Sync</CardTitle>
-				<CardDescription>Deploy env changes in seconds.</CardDescription>
-			</CardHeader>
-			<CardContent>Sync across development, staging, preview, and production.</CardContent>
-		</Card>
-
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>🧠 Smart Versioning</CardTitle>
-				<CardDescription>Track and rollback safely.</CardDescription>
-			</CardHeader>
-			<CardContent>Every change is logged and recoverable.</CardContent>
-		</Card>
-
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>🌍 Multi-Environment</CardTitle>
-				<CardDescription>Separate configs per stage.</CardDescription>
-			</CardHeader>
-			<CardContent>Development, staging, preview, production — cleanly separated.</CardContent>
-		</Card>
-
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>👥 Team Access</CardTitle>
-				<CardDescription>Collaborate securely.</CardDescription>
-			</CardHeader>
-			<CardContent>Invite teammates and control permissions easily.</CardContent>
-		</Card>
-
-		<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
-			<CardHeader>
-				<CardTitle>🛠 Developer Friendly</CardTitle>
-				<CardDescription>Simple CLI & API.</CardDescription>
-			</CardHeader>
-			<CardContent>Integrate with CI/CD and automate deployments.</CardContent>
-		</Card>
+		{#each projectHighlights as project (project.title)}
+			{@const Icon = project.icon}
+			<Card class="rounded-2xl shadow-sm transition hover:shadow-md">
+				<CardHeader>
+					<CardTitle class="flex items-center gap-2">
+						<Icon class={`h-5 w-5 ${project.color}`} />
+						{project.title}
+					</CardTitle>
+					<CardDescription>{project.description}</CardDescription>
+				</CardHeader>
+				<CardContent>{project.content}</CardContent>
+			</Card>
+		{/each}
 	</div>
 </section>
 
