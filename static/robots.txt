@@ -1,3 +1,16 @@
-# allow crawling everything by default
+# Vaultsy robots.txt
+
 User-agent: *
-Disallow:
+# Block all authenticated and private dashboard routes
+Disallow: /dashboard/
+Disallow: /signin
+Disallow: /invite/
+Disallow: /api/
+
+# Allow the public landing page and static assets
+Allow: /$
+Allow: /logo.webp
+Allow: /favicon.ico
+
+# Sitemap
+Sitemap: https://vaultsy.dev/sitemap.xml

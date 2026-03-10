@@ -117,6 +117,20 @@
 	});
 </script>
 
+<svelte:head>
+	<title>API Tokens — Vaultsy</title>
+	<meta
+		name="description"
+		content="Manage your Vaultsy API tokens for CLI and programmatic access to your environment variables and secrets."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="API Tokens — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Manage your Vaultsy API tokens for CLI and programmatic access to your environment variables and secrets."
+	/>
+</svelte:head>
+
 <div class="space-y-8">
 	<div>
 		<h1 class="text-3xl font-bold tracking-tight">API Tokens</h1>

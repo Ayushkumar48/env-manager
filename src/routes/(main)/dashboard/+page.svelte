@@ -46,6 +46,20 @@
 	);
 </script>
 
+<svelte:head>
+	<title>Dashboard — Vaultsy</title>
+	<meta
+		name="description"
+		content="Your Vaultsy dashboard. View recent projects, stats, and quick actions for managing your environment variables and secrets."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="Dashboard — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Your Vaultsy dashboard. View recent projects, stats, and quick actions for managing your environment variables and secrets."
+	/>
+</svelte:head>
+
 <div class="space-y-8">
 	<!-- Hero greeting -->
 	<div class="flex flex-col gap-1">

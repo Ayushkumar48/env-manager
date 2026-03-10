@@ -28,14 +28,10 @@
 	const callerRole = $derived(data.callerRole);
 	const canWrite = $derived(callerRole === 'owner' || callerRole === 'admin');
 
-	// Precompute the env → data map once per render so the {#each} body never
-	// calls Array.find() in a hot loop (O(n²) → O(1) per lookup).
 	const envDataMap = $derived(new Map(project.environments.map((e) => [e.name as Environment, e])));
 
 	let visibleSecrets: Record<string, boolean> = $state({});
 
-	// Track the active setTimeout id so we can clear it if the user clicks
-	// copy again before the 2-second timeout fires — prevents stale resets.
 	let copiedKey: string | null = $state(null);
 	let copiedKeyTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -82,7 +78,6 @@
 
 	async function copyToClipboard(text: string, key: string) {
 		await navigator.clipboard.writeText(text);
-		// Clear any previous pending reset before setting a new one.
 		if (copiedKeyTimer !== null) clearTimeout(copiedKeyTimer);
 		copiedKey = key;
 		copiedKeyTimer = setTimeout(() => {
@@ -91,8 +86,6 @@
 		}, 2000);
 	}
 
-	// Shared export helper — iterates the secret list exactly once and builds
-	// all three output formats in a single reduce pass.
 	function buildExports(envName: Environment): {
 		env: string;
 		json: string;
@@ -110,14 +103,12 @@
 		}>(
 			(acc, s) => {
 				const val = s.value;
-				// .env format — quote values containing special characters.
 				const needsQuoting = /[\s#$"'\\`]/.test(val) || val === '';
 				const envLine = needsQuoting
 					? `${s.key}="${val.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 					: `${s.key}=${val}`;
 				acc.envLines.push(envLine);
 				acc.jsonObj[s.key] = val;
-				// .NET appsettings convention: __ → :
 				acc.dotnetObj[s.key.replace(/__/g, ':')] = val;
 				return acc;
 			},
@@ -125,7 +116,6 @@
 		);
 
 		return {
-			// Always end with a trailing newline — POSIX text file convention.
 			env: envLines.join('\n') + '\n',
 			json: JSON.stringify(jsonObj, null, 2),
 			dotnet: JSON.stringify(dotnetObj, null, 2)
@@ -138,11 +128,9 @@
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = filename;
-		// Must be in the DOM for Firefox to trigger the download reliably.
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
-		// Revoke after a tick so the browser has time to start the download.
 		setTimeout(() => URL.revokeObjectURL(url), 100);
 	}
 
@@ -150,6 +138,20 @@
 		return project.title.toLowerCase().replace(/\s+/g, '-');
 	}
 </script>
+
+<svelte:head>
+	<title>{project.title} — Vaultsy</title>
+	<meta
+		name="description"
+		content="Manage secrets and environment variables for {project.title} across development, staging, preview, and production environments."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="{project.title} — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Manage secrets and environment variables for {project.title} across development, staging, preview, and production environments."
+	/>
+</svelte:head>
 
 <div>
 	<div class="mx-auto w-full space-y-6">
@@ -176,7 +178,7 @@
 			</div>
 			<div class="flex gap-2">
 				{#if canWrite}
-					<Button variant="outline" size="sm" href={`/dashboard/projects/${data.projectId}/edit`}>
+					<Button size="sm" href={`/dashboard/projects/${data.projectId}/edit`}>
 						<PencilLine class="mr-2 h-4 w-4" />
 						Edit
 					</Button>
@@ -278,16 +280,6 @@
 										<Download class="mr-2 h-4 w-4" />
 										.NET
 									</Button>
-									{#if canWrite}
-										<Button
-											variant="default"
-											size="sm"
-											href={resolve(`/dashboard/projects/${projectId}/edit`)}
-										>
-											<PencilLine class="mr-2 h-4 w-4" />
-											Edit
-										</Button>
-									{/if}
 								{/if}
 							</div>
 						</CardHeader>

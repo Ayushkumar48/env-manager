@@ -75,6 +75,20 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Edit {project.title} — Vaultsy</title>
+	<meta
+		name="description"
+		content="Edit environment variables and secrets for {project.title} in Vaultsy."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="Edit {project.title} — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Edit environment variables and secrets for {project.title} in Vaultsy."
+	/>
+</svelte:head>
+
 <div>
 	<form
 		class="mx-auto w-full space-y-8"

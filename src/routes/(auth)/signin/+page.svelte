@@ -9,6 +9,20 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 </script>
 
+<svelte:head>
+	<title>Sign In — Vaultsy</title>
+	<meta
+		name="description"
+		content="Sign in to Vaultsy with your GitHub account to manage your environment variables and secrets securely."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="Sign In — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Sign in to Vaultsy with your GitHub account to manage your environment variables and secrets securely."
+	/>
+</svelte:head>
+
 <div class="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
 	<div class="flex w-full max-w-xl flex-col gap-6">
 		<a href={resolve('/')} class="flex items-center gap-2 self-center font-medium">

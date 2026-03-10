@@ -48,6 +48,20 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Projects — Vaultsy</title>
+	<meta
+		name="description"
+		content="Browse and manage all your Vaultsy projects. Search, create, edit, and delete projects containing your environment variables and secrets."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="Projects — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Browse and manage all your Vaultsy projects. Search, create, edit, and delete projects containing your environment variables and secrets."
+	/>
+</svelte:head>
+
 <div class="space-y-6">
 	<!-- Header -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -63,6 +63,34 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Vaultsy — Manage Environment Variables Without the Chaos</title>
+	<meta
+		name="description"
+		content="Vaultsy is a modern environment & secret manager built for developers. Securely store, version, and deploy your .env secrets across development, staging, preview, and production."
+	/>
+	<meta
+		name="keywords"
+		content="environment variables, secret manager, env manager, dotenv, developer tools, secrets vault, config management, CI/CD secrets"
+	/>
+
+	<!-- Open Graph -->
+	<meta property="og:title" content="Vaultsy — Manage Environment Variables Without the Chaos" />
+	<meta
+		property="og:description"
+		content="Vaultsy is a modern environment & secret manager built for developers. Securely store, version, and deploy your .env secrets across all environments."
+	/>
+	<meta property="og:url" content="https://vaultsy.dev/" />
+	<meta property="og:type" content="website" />
+
+	<!-- Twitter / X Card -->
+	<meta name="twitter:title" content="Vaultsy — Manage Environment Variables Without the Chaos" />
+	<meta
+		name="twitter:description"
+		content="Vaultsy is a modern environment & secret manager built for developers. Securely store, version, and deploy your .env secrets across all environments."
+	/>
+</svelte:head>
+
 <Navbar />
 
 <section class="relative overflow-hidden">

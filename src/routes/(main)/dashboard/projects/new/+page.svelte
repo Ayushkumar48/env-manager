@@ -22,6 +22,20 @@
 	const isPending = $derived(!!createProject.pending);
 </script>
 
+<svelte:head>
+	<title>New Project — Vaultsy</title>
+	<meta
+		name="description"
+		content="Create a new Vaultsy project. Add your environment variables for development, staging, preview, and production environments."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+	<meta property="og:title" content="New Project — Vaultsy" />
+	<meta
+		property="og:description"
+		content="Create a new Vaultsy project. Add your environment variables for development, staging, preview, and production environments."
+	/>
+</svelte:head>
+
 <div>
 	<form class="mx-auto w-full space-y-8" {...createProject.preflight(CreateProjectSchema)}>
 		<div class="space-y-2">
