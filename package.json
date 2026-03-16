@@ -62,7 +62,6 @@
 	},
 	"dependencies": {
 		"@neondatabase/serverless": "^1.0.2",
-		"@plunk/node": "^3.0.3",
 		"@vaultsy/shared": "workspace:*",
 		"zod": "^4.3.6"
 	}
